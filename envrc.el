@@ -372,12 +372,19 @@ also appear in PAIRS."
           (envrc--clear buf)
           (envrc--debug "[%s] reset environment to default" buf))
       (envrc--debug "[%s] applied merged environment" buf)
-      (let* ((remote (when-let* ((fn (buffer-file-name buf)))
-                       (file-remote-p fn)))
+      ;; Make sure RESULT is applied to non-file buffers (such as
+      ;; dired) as is shown in the debug buffer, which also aligns
+      ;; with the criterion of envrc--find-env-dir.
+      (let* ((remote (file-remote-p default-directory))
              (env (envrc--merged-environment
-                   (default-value (if remote
-                                      'tramp-remote-process-environment
-                                    'process-environment))
+                   (if remote
+                       (with-parsed-tramp-file-name remote vec
+                         (with-current-buffer (tramp-get-connection-buffer vec)
+                           ;; available since Emacs 30
+                           (if (connection-local-p tramp-remote-process-environment)
+                               (connection-local-value tramp-remote-process-environment)
+                             (default-value 'tramp-remote-process-environment))))
+                     (default-value 'process-environment))
                    result))
              (path (getenv-internal "PATH" env))
              (parsed-path (parse-colon-path path)))
